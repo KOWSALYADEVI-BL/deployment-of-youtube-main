@@ -9,7 +9,7 @@ on:
 env:
   AWS_REGION: eu-north-1
   ECR_REPO: youtube2.0
-  DEPLOYMENT_FILE: kube/deployment.yaml
+  DEPLOYMENT_FILE: kube/deployment.yml # Note the .yml extension
   SERVICE_FILE: kube/service.yaml
 
 jobs:
@@ -21,7 +21,7 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v3
 
-    # 2️⃣ Debug - list files to ensure they exist
+    # 2️⃣ Debug - list files to confirm
     - name: List files in repo
       run: ls -R
 
@@ -66,20 +66,20 @@ jobs:
         echo "Listing kube folder contents for debug"
         ls -l kube/
 
-        # Replace placeholders in deployment.yaml
-        sed -i "s|IMAGE_TAG|$IMAGE_TAG|g" kube/deployment.yaml
-        sed -i "s|AWS_ACCOUNT_ID|${{ secrets.AWS_ACCOUNT_ID }}|g" kube/deployment.yaml
+        # Replace placeholders in deployment file
+        sed -i "s|IMAGE_TAG|$IMAGE_TAG|g" ${{ env.DEPLOYMENT_FILE }}
+        sed -i "s|AWS_ACCOUNT_ID|${{ secrets.AWS_ACCOUNT_ID }}|g" ${{ env.DEPLOYMENT_FILE }}
 
         # Branch-based deployment adjustments
         if [ "${GITHUB_REF##*/}" = "develop" ]; then
           echo "Deploying to Dev environment"
-          sed -i "s|replicas: .*|replicas: 1|g" kube/deployment.yaml
-          sed -i "s|type: .*|type: ClusterIP|g" kube/service.yaml
+          sed -i "s|replicas: .*|replicas: 1|g" ${{ env.DEPLOYMENT_FILE }}
+          sed -i "s|type: .*|type: ClusterIP|g" ${{ env.SERVICE_FILE }}
         else
           echo "Deploying to Prod environment"
           # keeps original replicas and LoadBalancer type
         fi
 
         # Apply Kubernetes manifests
-        kubectl apply -f kube/deployment.yaml
-        kubectl apply -f kube/service.yaml
+        kubectl apply -f ${{ env.DEPLOYMENT_FILE }}
+        kubectl apply -f ${{ env.SERVICE_FILE }}
