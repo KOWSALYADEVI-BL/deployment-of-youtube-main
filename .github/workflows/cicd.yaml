@@ -5,6 +5,14 @@ on:
     branches:
     - main
     - develop
+
+env:
+  AWS_REGION: eu-north-1
+  AWS_ACCOUNT_ID: 20880439519
+  ECR_REPO: youtube2.0
+  DEPLOYMENT_FILE: deployment.yaml
+  SERVICE_FILE: service.yaml
+
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
@@ -20,4 +28,51 @@ jobs:
       with:
         aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
         aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-        aws-region: ${{ secrets.AWS_REGION }}
+        aws-region: ${{ env.AWS_REGION }}
+
+    # 3️⃣ Login to AWS ECR
+    - name: Login to ECR
+      run: |
+        aws ecr get-login-password --region ${{ env.AWS_REGION }} \
+        | docker login --username AWS --password-stdin ${{ env.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com
+
+    # 4️⃣ Build and Push Docker Image
+    - name: Build and Push Docker Image
+      run: |
+        IMAGE_TAG=${GITHUB_SHA}
+        IMAGE_URI=${{ env.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/${{ env.ECR_REPO }}:$IMAGE_TAG
+        echo "Building Docker image $IMAGE_URI"
+        docker build -t $IMAGE_URI .
+        docker push $IMAGE_URI
+
+    # 5️⃣ Setup kubectl
+    - name: Setup kubectl
+      uses: azure/setup-kubectl@v3
+
+    # 6️⃣ Configure kubeconfig
+    - name: Configure kubeconfig
+      run: |
+        mkdir -p ~/.kube
+        echo "${{ secrets.KUBE_CONFIG_DATA }}" | base64 --decode > ~/.kube/config
+
+    # 7️⃣ Deploy to EKS
+    - name: Deploy to EKS
+      run: |
+        IMAGE_TAG=${GITHUB_SHA}
+        # Replace image and AWS_ACCOUNT_ID in deployment.yaml
+        sed -i "s|IMAGE_TAG|$IMAGE_TAG|g" ${{ env.DEPLOYMENT_FILE }}
+        sed -i "s|AWS_ACCOUNT_ID|${{ env.AWS_ACCOUNT_ID }}|g" ${{ env.DEPLOYMENT_FILE }}
+
+        # Optional: branch-based deployment adjustments
+        if [ "${GITHUB_REF##*/}" == "develop" ]; then
+          echo "Deploying to Dev environment"
+          sed -i "s|replicas: .*|replicas: 1|g" ${{ env.DEPLOYMENT_FILE }}
+          sed -i "s|type: .*|type: ClusterIP|g" ${{ env.SERVICE_FILE }}
+        else
+          echo "Deploying to Prod environment"
+          # keeps original replicas/service type in deployment/service files
+        fi
+
+        # Apply Kubernetes manifests
+        kubectl apply -f ${{ env.DEPLOYMENT_FILE }}
+        kubectl apply -f ${{ env.SERVICE_FILE }}
