@@ -21,7 +21,11 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v3
 
-    # 2️⃣ Configure AWS credentials
+    # 2️⃣ Debug - list files to ensure they exist
+    - name: List files in repo
+      run: ls -R
+
+    # 3️⃣ Configure AWS credentials
     - name: Configure AWS
       uses: aws-actions/configure-aws-credentials@v4
       with:
@@ -29,13 +33,13 @@ jobs:
         aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         aws-region: ${{ env.AWS_REGION }}
 
-    # 3️⃣ Login to AWS ECR
+    # 4️⃣ Login to AWS ECR
     - name: Login to ECR
       run: |
         aws ecr get-login-password --region ${{ env.AWS_REGION }} \
         | docker login --username AWS --password-stdin ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com
 
-    # 4️⃣ Build and Push Docker Image (SHA-based)
+    # 5️⃣ Build and push Docker image
     - name: Build and Push Docker Image
       run: |
         IMAGE_TAG=${GITHUB_SHA}
@@ -44,39 +48,38 @@ jobs:
         docker build -t $IMAGE_URI .
         docker push $IMAGE_URI
 
-    # 5️⃣ Setup kubectl
+    # 6️⃣ Setup kubectl
     - name: Setup kubectl
       uses: azure/setup-kubectl@v3
 
-    # 6️⃣ Configure kubeconfig
+    # 7️⃣ Configure kubeconfig
     - name: Configure kubeconfig
       run: |
         mkdir -p ~/.kube
         echo "${{ secrets.KUBE_CONFIG_DATA }}" | base64 --decode > ~/.kube/config
-
-    # 7️⃣ List files for debugging (optional)
-    - name: List repo files
-      run: ls -R
 
     # 8️⃣ Deploy to EKS
     - name: Deploy to EKS
       run: |
         IMAGE_TAG=${GITHUB_SHA}
 
-        # Replace placeholders in deployment.yaml
-        sed -i "s|IMAGE_TAG|$IMAGE_TAG|g" ${{ env.DEPLOYMENT_FILE }}
-        sed -i "s|AWS_ACCOUNT_ID|${{ secrets.AWS_ACCOUNT_ID }}|g" ${{ env.DEPLOYMENT_FILE }}
+        echo "Listing kube folder contents for debug"
+        ls -l kube/
 
-        # Branch-based environment adjustments
+        # Replace placeholders in deployment.yaml
+        sed -i "s|IMAGE_TAG|$IMAGE_TAG|g" kube/deployment.yaml
+        sed -i "s|AWS_ACCOUNT_ID|${{ secrets.AWS_ACCOUNT_ID }}|g" kube/deployment.yaml
+
+        # Branch-based deployment adjustments
         if [ "${GITHUB_REF##*/}" = "develop" ]; then
           echo "Deploying to Dev environment"
-          sed -i "s|replicas: .*|replicas: 1|g" ${{ env.DEPLOYMENT_FILE }}
-          sed -i "s|type: .*|type: ClusterIP|g" ${{ env.SERVICE_FILE }}
+          sed -i "s|replicas: .*|replicas: 1|g" kube/deployment.yaml
+          sed -i "s|type: .*|type: ClusterIP|g" kube/service.yaml
         else
           echo "Deploying to Prod environment"
-          # keeps original replicas/service type
+          # keeps original replicas and LoadBalancer type
         fi
 
         # Apply Kubernetes manifests
-        kubectl apply -f ${{ env.DEPLOYMENT_FILE }}
-        kubectl apply -f ${{ env.SERVICE_FILE }}
+        kubectl apply -f kube/deployment.yaml
+        kubectl apply -f kube/service.yaml
