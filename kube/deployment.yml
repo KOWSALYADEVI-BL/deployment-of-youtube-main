@@ -13,8 +13,8 @@ spec:
         app: my-app
     spec:
       containers:
-        - name: my-app
-          image: devops5511/youtube2.0:v3
-          imagePullPolicy: Always
-          ports:
-            - containerPort: 3000
+      - name: my-app
+        image: 020880439519.dkr.ecr.eu-north-1.amazonaws.com/youtube2.0:ee29c74f74499ce04f0d7e1232ed022219600f2a
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 3000
