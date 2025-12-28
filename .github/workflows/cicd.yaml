@@ -9,20 +9,20 @@ on:
 env:
   AWS_REGION: eu-north-1
   ECR_REPO: youtube2.0
-  DEPLOYMENT_FILE: kube/deployment.yml # Note the .yml extension
+  DEPLOYMENT_FILE: kube/deployment.yml
   SERVICE_FILE: kube/service.yaml
 
 jobs:
   build-and-deploy:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-latest # Use only Ubuntu runner
 
     steps:
     # 1️⃣ Checkout repository
     - name: Checkout code
       uses: actions/checkout@v3
 
-    # 2️⃣ Debug - list files to confirm
-    - name: List files in repo
+    # 2️⃣ Debug - list files to confirm they exist
+    - name: List repo files
       run: ls -R
 
     # 3️⃣ Configure AWS credentials
