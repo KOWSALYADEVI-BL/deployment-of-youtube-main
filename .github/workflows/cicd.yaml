@@ -65,4 +65,18 @@ jobs:
 
         # Replace placeholders in deployment.yaml
         sed -i "s|IMAGE_TAG|$IMAGE_TAG|g" ${{ env.DEPLOYMENT_FILE }}
-        sed -i "s|AWS_ACCOUNT_ID|${{ secrets.AWS_ACCOUNT_ID }}|g" ${{ env.DEPLOYMENT
+        sed -i "s|AWS_ACCOUNT_ID|${{ secrets.AWS_ACCOUNT_ID }}|g" ${{ env.DEPLOYMENT_FILE }}
+
+        # Branch-based environment adjustments
+        if [ "${GITHUB_REF##*/}" = "develop" ]; then
+          echo "Deploying to Dev environment"
+          sed -i "s|replicas: .*|replicas: 1|g" ${{ env.DEPLOYMENT_FILE }}
+          sed -i "s|type: .*|type: ClusterIP|g" ${{ env.SERVICE_FILE }}
+        else
+          echo "Deploying to Prod environment"
+          # keeps original replicas/service type
+        fi
+
+        # Apply Kubernetes manifests
+        kubectl apply -f ${{ env.DEPLOYMENT_FILE }}
+        kubectl apply -f ${{ env.SERVICE_FILE }}
