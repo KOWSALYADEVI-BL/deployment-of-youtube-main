@@ -5,3 +5,11 @@ on:
     branches:
     - main
     - develop
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+    # 1️⃣ Checkout repository
+    - name: Checkout code
+      uses: actions/checkout@v3
