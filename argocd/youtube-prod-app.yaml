@@ -11,9 +11,8 @@ spec:
     path: kube
   destination:
     server: 'https://kubernetes.default.svc'
-    namespace: default
+    namespace: youtube-prod
   syncPolicy:
     automated:
       prune: true
       selfHeal: true
-
