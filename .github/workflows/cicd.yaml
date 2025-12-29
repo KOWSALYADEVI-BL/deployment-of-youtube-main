@@ -29,23 +29,22 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
 
-      # 3️⃣ Login to ECR
+      # 3️⃣ Login to AWS ECR
       - name: Login to ECR
         run: |
           aws ecr get-login-password --region ${{ env.AWS_REGION }} \
           | docker login --username AWS --password-stdin ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com
 
-      # 4️⃣ Build and push Docker image with SHA and latest tags
+      # 4️⃣ Build and push Docker image (SHA + latest)
       - name: Build and Push Docker Image
         run: |
-          # Use Git commit SHA as tag
           IMAGE_TAG=${GITHUB_SHA}
           ECR_URI=${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/${{ env.ECR_REPO }}
-          
-          # Build Docker image
+
+          # Build image
           docker build -t $ECR_URI:$IMAGE_TAG .
           
-          # Tag as latest too
+          # Tag as latest
           docker tag $ECR_URI:$IMAGE_TAG $ECR_URI:latest
           
           # Push both tags
@@ -64,17 +63,19 @@ jobs:
           mkdir -p ~/.kube
           echo "${{ secrets.KUBE_CONFIG_DATA }}" | base64 --decode > ~/.kube/config
 
-      # 7️⃣ Deploy to EKS with latest tag
+      # 7️⃣ Deploy to EKS (Dev or Prod)
       - name: Deploy to EKS
         run: |
           IMAGE_URI=${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/${{ env.ECR_REPO }}:latest
+          
           echo "Deploying image: $IMAGE_URI"
+          ls -l kube/
 
-          # Replace placeholders in deployment file
+          # Replace placeholders in deployment YAML
           sed -i "s|IMAGE_TAG|latest|g" ${{ env.DEPLOYMENT_FILE }}
           sed -i "s|AWS_ACCOUNT_ID|${{ secrets.AWS_ACCOUNT_ID }}|g" ${{ env.DEPLOYMENT_FILE }}
 
-          # Branch-based environment deployment
+          # Determine environment by branch
           if [ "${GITHUB_REF##*/}" = "develop" ]; then
             echo "Deploying to Dev environment"
             NAMESPACE="youtube-dev"
