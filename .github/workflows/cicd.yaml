@@ -3,8 +3,8 @@ name: YouTube App CI/CD Pipeline
 on:
   push:
     branches:
-    - main
-    - develop
+      - main
+      - develop
 
 env:
   AWS_REGION: eu-north-1
@@ -17,71 +17,74 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    # 1️⃣ Checkout repository
-    - name: Checkout code
-      uses: actions/checkout@v3
+      # 1️⃣ Checkout repository
+      - name: Checkout code
+        uses: actions/checkout@v3
 
-    # 2️⃣ Debug - list files to confirm
-    - name: List repo files
-      run: ls -R
+      # 2️⃣ Configure AWS credentials
+      - name: Configure AWS
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
 
-    # 3️⃣ Configure AWS credentials
-    - name: Configure AWS
-      uses: aws-actions/configure-aws-credentials@v4
-      with:
-        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-        aws-region: ${{ env.AWS_REGION }}
+      # 3️⃣ Login to ECR
+      - name: Login to ECR
+        run: |
+          aws ecr get-login-password --region ${{ env.AWS_REGION }} \
+          | docker login --username AWS --password-stdin ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com
 
-    # 4️⃣ Login to AWS ECR
-    - name: Login to ECR
-      run: |
-        aws ecr get-login-password --region ${{ env.AWS_REGION }} \
-        | docker login --username AWS --password-stdin ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com
+      # 4️⃣ Build and push Docker image with SHA and latest tags
+      - name: Build and Push Docker Image
+        run: |
+          # Use Git commit SHA as tag
+          IMAGE_TAG=${GITHUB_SHA}
+          ECR_URI=${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/${{ env.ECR_REPO }}
+          
+          # Build Docker image
+          docker build -t $ECR_URI:$IMAGE_TAG .
+          
+          # Tag as latest too
+          docker tag $ECR_URI:$IMAGE_TAG $ECR_URI:latest
+          
+          # Push both tags
+          docker push $ECR_URI:$IMAGE_TAG
+          docker push $ECR_URI:latest
+          
+          echo "Docker images pushed: $IMAGE_TAG and latest"
 
-    # 5️⃣ Build and Push Docker Image (Corrected)
-    - name: Build and Push Docker Image
-      run: |
-        # Use Git commit SHA as tag to ensure unique & valid image tag
-        IMAGE_TAG=${GITHUB_SHA}
-        IMAGE_URI=${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/${{ env.ECR_REPO }}:$IMAGE_TAG
+      # 5️⃣ Setup kubectl
+      - name: Setup kubectl
+        uses: azure/setup-kubectl@v3
 
-        echo "Building Docker image $IMAGE_URI"
-        docker build -t $IMAGE_URI .
-        docker push $IMAGE_URI
+      # 6️⃣ Configure kubeconfig
+      - name: Configure kubeconfig
+        run: |
+          mkdir -p ~/.kube
+          echo "${{ secrets.KUBE_CONFIG_DATA }}" | base64 --decode > ~/.kube/config
 
-    # 6️⃣ Setup kubectl
-    - name: Setup kubectl
-      uses: azure/setup-kubectl@v3
+      # 7️⃣ Deploy to EKS with latest tag
+      - name: Deploy to EKS
+        run: |
+          IMAGE_URI=${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/${{ env.ECR_REPO }}:latest
+          echo "Deploying image: $IMAGE_URI"
 
-    # 7️⃣ Configure kubeconfig
-    - name: Configure kubeconfig
-      run: |
-        mkdir -p ~/.kube
-        echo "${{ secrets.KUBE_CONFIG_DATA }}" | base64 --decode > ~/.kube/config
+          # Replace placeholders in deployment file
+          sed -i "s|IMAGE_TAG|latest|g" ${{ env.DEPLOYMENT_FILE }}
+          sed -i "s|AWS_ACCOUNT_ID|${{ secrets.AWS_ACCOUNT_ID }}|g" ${{ env.DEPLOYMENT_FILE }}
 
-    # 8️⃣ Deploy to EKS (Corrected)
-    - name: Deploy to EKS
-      run: |
-        IMAGE_TAG=${GITHUB_SHA}
-        echo "Listing kube folder contents"
-        ls -l kube/
+          # Branch-based environment deployment
+          if [ "${GITHUB_REF##*/}" = "develop" ]; then
+            echo "Deploying to Dev environment"
+            NAMESPACE="youtube-dev"
+            sed -i "s|replicas: .*|replicas: 1|g" ${{ env.DEPLOYMENT_FILE }}
+            sed -i "s|type: .*|type: ClusterIP|g" ${{ env.SERVICE_FILE }}
+          else
+            echo "Deploying to Prod environment"
+            NAMESPACE="youtube-prod"
+          fi
 
-        # Replace placeholders in deployment file
-        sed -i "s|IMAGE_TAG|$IMAGE_TAG|g" ${{ env.DEPLOYMENT_FILE }}
-        sed -i "s|AWS_ACCOUNT_ID|${{ secrets.AWS_ACCOUNT_ID }}|g" ${{ env.DEPLOYMENT_FILE }}
-
-        # Branch-based environment deployment
-        if [ "${GITHUB_REF##*/}" = "develop" ]; then
-          echo "Deploying to Dev environment"
-          NAMESPACE="youtube-dev"
-          sed -i "s|replicas: .*|replicas: 1|g" ${{ env.DEPLOYMENT_FILE }}
-          sed -i "s|type: .*|type: ClusterIP|g" ${{ env.SERVICE_FILE }}
-        else
-          echo "Deploying to Prod environment"
-          NAMESPACE="youtube-prod"
-        fi
-
-        # Apply Kubernetes manifests to correct namespace
-        kubectl apply -f ${{ env.DEPLOYMENT_FILE }} -n $NAMESPACE
-        kubectl apply -f ${{ env.SERVICE_FILE }} -n $NAMESPACE
+          # Apply Kubernetes manifests
+          kubectl apply -f ${{ env.DEPLOYMENT_FILE }} -n $NAMESPACE
+          kubectl apply -f ${{ env.SERVICE_FILE }} -n $NAMESPACE
