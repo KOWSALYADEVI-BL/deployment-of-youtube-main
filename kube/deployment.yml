@@ -14,7 +14,7 @@ spec:
     spec:
       containers:
       - name: my-app
-        image: AWS_ACCOUNT_ID.dkr.ecr.eu-north-1.amazonaws.com/youtube2.0:IMAGE_TAG
+        image: 020880439519.dkr.ecr.eu-north-1.amazonaws.com/youtube2.0:latest
         imagePullPolicy: Always
         ports:
         - containerPort: 3000
