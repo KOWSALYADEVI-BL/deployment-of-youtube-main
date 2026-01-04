@@ -10,8 +10,8 @@ spec:
   project: default
   source:
     repoURL: 'https://github.com/KOWSALYADEVI-BL/deployment-of-youtube-main'
-    targetRevision: develop
-    path: kube
+    targetRevision: develop # Dev branch
+    path: kube # path to your manifests
   destination:
     server: 'https://kubernetes.default.svc'
     namespace: youtube-dev
@@ -20,4 +20,4 @@ spec:
       prune: true
       selfHeal: true
     syncOptions:
-      - CreateNamespace=true
+    - CreateNamespace=true # auto-create dev namespace if missing

@@ -10,7 +10,7 @@ spec:
   project: default
   source:
     repoURL: 'https://github.com/KOWSALYADEVI-BL/deployment-of-youtube-main'
-    targetRevision: main
+    targetRevision: main # Prod branch
     path: kube
   destination:
     server: 'https://kubernetes.default.svc'
@@ -20,4 +20,4 @@ spec:
       prune: true
       selfHeal: true
     syncOptions:
-      - CreateNamespace=true
+    - CreateNamespace=true # auto-create prod namespace if missing
