@@ -14,7 +14,9 @@ spec:
     spec:
       containers:
       - name: my-app
-        image: 020880439519.dkr.ecr.eu-north-1.amazonaws.com/youtube2.0:latest
+        image: 020880439519.dkr.ecr.eu-north-1.amazonaws.com/youtube2.0:v1.0.0
         imagePullPolicy: Always
         ports:
         - containerPort: 3000
+      imagePullSecrets:
+      - name: ecr-secret
