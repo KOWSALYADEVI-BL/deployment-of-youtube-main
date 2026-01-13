@@ -1,0 +1,32 @@
+deploymentName: webapp-prod
+namespace: production
+environment: production
+port: 80
+
+replicaCount: 2 # usually prod has >1
+
+image:
+  repository: 020880439519.dkr.ecr.eu-north-1.amazonaws.com/youtube2.0
+  tag: latest
+  pullPolicy: Always
+
+service:
+  type: ClusterIP
+  port: 80
+
+ingress:
+  enabled: true
+  className: nginx
+  path: /webapp-prod
+  hostnames:
+  - prod-webapp.local
+  annotations: {}
+  addRootPath: true # root path added only in prod
+
+resources:
+  requests:
+    memory: "128Mi"
+    cpu: "100m"
+  limits:
+    memory: "256Mi"
+    cpu: "200m"
