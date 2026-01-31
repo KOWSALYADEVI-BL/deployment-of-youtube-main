@@ -6,7 +6,7 @@ metadata:
 spec:
   project: default
   source:
-    repoURL: 'https://github.com/KOWSALYADEVI-BL/SW-dep-Argocd'
+    repoURL: 'https://github.com/deployment-of-youtube-main'
     targetRevision: HEAD
     path: helm-gitops-project/charts/webapp
     helm:
